@@ -46,17 +46,17 @@
     <div id="login_view">
         <div class="login-box">
             <div class="logo-container">
-                <img src="YOUR_LOGO_1.png" alt="University Logo" class="logo-img">
-                <img src="YOUR_LOGO_2.png" alt="Department Logo" class="logo-img">
-                <img src="labtrack_iot_website/labtracklogo.png" alt="LabTrack Logo" class="logo-img">
+                <img src="university_logo.png" alt="University Logo" class="logo-img">
+                <img src="dept_logo.png" alt="Department Logo" class="logo-img">
+                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
             </div>
             <h2>Welcome to LabTrack Dashboard!</h2>
-            <div id="login_error" class="error-msg">Incorrect Email or Password.</div>
+            <div id="login_error" class="error-msg">Incorrect Username or Password.</div>
             
-            <input type="email" id="admin_email" placeholder="Admin Email (group6labtrack@gmail.com)">
-            <input type="password" id="admin_pass" placeholder="Password (admintrack)">
+            <input type="text" id="admin_user" placeholder="Username">
+            <input type="password" id="admin_pass" placeholder="Password">
             
-            <button onclick="attemptLogin()">Secure Login</button>
+            <button onclick="attemptLogin()">Login</button>
         </div>
         <div class="footer-text">LabTrack Dashboard V1.0</div>
     </div>
@@ -64,9 +64,9 @@
     <div id="dashboard_view">
         <div class="header-bar">
             <div class="header-left">
-                <img src="labtrack_iot_website/PUPLogo.png" alt="University Logo" class="logo-img">
-                <img src="labtrack_iot_website/pupecelogo.jpg" alt="Department Logo" class="logo-img">
-                <img src="labtrack_iot_website/labtracklogo.png" alt="LabTrack Logo" class="logo-img">
+                <img src="university_logo.png" alt="University Logo" class="logo-img">
+                <img src="dept_logo.png" alt="Department Logo" class="logo-img">
+                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
                 <h1>LabTrack Real-Time Dashboard</h1>
             </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
@@ -131,19 +131,24 @@
         });
 
         function attemptLogin() {
-            const email = document.getElementById('admin_email').value.trim();
+            const username = document.getElementById('admin_user').value.trim();
             const pass = document.getElementById('admin_pass').value.trim();
+            
+            // THE SECRET TRANSLATOR
+            // Converts "adminlab" to the backend-required dummy email format
+            const email = username + "@labtrack.local"; 
+
             auth.signInWithEmailAndPassword(email, pass)
                 .then(() => document.getElementById('login_error').style.display = 'none')
                 .catch((error) => {
-                    document.getElementById('login_error').innerText = error.message;
+                    document.getElementById('login_error').innerText = "Access Denied. Check credentials.";
                     document.getElementById('login_error').style.display = 'block';
                 });
         }
 
         function logout() {
             auth.signOut().then(() => {
-                document.getElementById('admin_email').value = '';
+                document.getElementById('admin_user').value = '';
                 document.getElementById('admin_pass').value = '';
             });
         }
@@ -199,36 +204,20 @@
             const rfidNum = document.getElementById('new_rfid_num').value.trim();
             const eqName = document.getElementById('new_eq_name').value.trim();
 
-            if(!epc || !rfidNum || !eqName) {
-                alert("Please fill out all 3 fields to register a tag.");
-                return;
-            }
+            if(!epc || !rfidNum || !eqName) return alert("Please fill out all 3 fields.");
 
-            fetch("http://192.168.57.116:8080/api/add_tag", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    epc_id: epc,
-                    rfid_tag_number: rfidNum,
-                    equipment_name: eqName
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if(data.message) {
-                    alert("Success: " + data.message);
-                    document.getElementById('new_epc').value = '';
-                    document.getElementById('new_rfid_num').value = '';
-                    document.getElementById('new_eq_name').value = '';
-                } else {
-                    alert("Error from Pi: " + data.error);
-                }
-            })
-            .catch(error => {
-                alert("Connection Error. Ensure you are connected to ECE_Wi-Fi and the Pi is running.");
-            });
+            // Writes to Firebase Queue. The Pi will download it securely over LAN.
+            db.ref('pending_tags').push({
+                epc_id: epc,
+                rfid_tag_number: rfidNum,
+                equipment_name: eqName
+            }).then(() => {
+                alert("Tag Registration Queued! The Raspberry Pi will sync it shortly.");
+                document.getElementById('new_epc').value = '';
+                document.getElementById('new_rfid_num').value = '';
+                document.getElementById('new_eq_name').value = '';
+            }).catch((error) => alert("Permission Denied: " + error.message));
         }
     </script>
 </body>
-
 </html>
