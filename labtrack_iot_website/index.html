@@ -99,7 +99,7 @@
             <div class="config-box">
                 <h3>Remote Hardware Setup</h3>
                 <input type="text" id="phone_cfg" placeholder="New Tech Phone..."><br>
-                <input type="text" id="ssid_cfg" placeholder="New Wi-Fi SSID..."><br>
+                <input type="text" id="ssid_cfg" placeholder="New ECE Wi-Fi SSID..."><br>
                 <input type="password" id="pass_cfg" placeholder="New Wi-Fi PASS..."><br>
                 <button onclick="updateConfig()">Push Settings to ESP32</button>
             </div>
@@ -156,10 +156,12 @@
             const typedUser = document.getElementById('admin_user').value.trim();
             const typedPass = document.getElementById('admin_pass').value.trim();
             
+            // Log in using the secured Master credentials
             auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "admintrack")
                 .then(() => {
                     db.ref('config').once('value').then((snapshot) => {
                         const config = snapshot.val() || {};
+                        // IF blank in DB, defaults perfectly to adminlab and admintrack
                         const activeUser = config.dashboard_user || "adminlab"; 
                         const activePass = config.dashboard_pass || "admintrack"; 
                         
@@ -171,11 +173,16 @@
                             loadDatabaseData(); 
                         } else {
                             auth.signOut();
+                            document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                             document.getElementById('login_error').style.display = 'block';
                         }
+                    }).catch((dbError) => {
+                        document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
+                        document.getElementById('login_error').style.display = 'block';
                     });
                 })
                 .catch((error) => {
+                    document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                     document.getElementById('login_error').style.display = 'block';
                 });
         }
@@ -203,6 +210,7 @@
                 document.getElementById('reset_pass').value = '';
                 document.getElementById('reset_view').style.display = 'flex';
             } else {
+                document.getElementById('otp_error').innerText = "The OTP is wrong.";
                 document.getElementById('otp_error').style.display = 'block';
             }
         }
@@ -316,4 +324,5 @@
     </script>
 </body>
 </html>
+
 
