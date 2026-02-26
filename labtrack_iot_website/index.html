@@ -289,9 +289,16 @@
             document.getElementById('dashboard_view').style.display = 'none';
             document.getElementById('delete_view').style.display = 'flex';
             
-            db.ref('database_mirror').once('value').then((snapshot) => {
+            // Re-loads instantly using '.on' so you don't stare at an empty table
+            db.ref('database_mirror').on('value', (snapshot) => {
                 const table = document.getElementById('delete_tags_table');
                 table.innerHTML = "";
+                
+                if (!snapshot.exists()) {
+                    table.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Waiting for Raspberry Pi to sync database...</td></tr>";
+                    return;
+                }
+
                 snapshot.forEach((child) => {
                     const item = child.val();
                     table.innerHTML += `
@@ -306,6 +313,7 @@
         }
 
         function cancelDeleteView() {
+            db.ref('database_mirror').off('value'); 
             document.getElementById('delete_view').style.display = 'none';
             document.getElementById('dashboard_view').style.display = 'block';
         }
@@ -317,7 +325,8 @@
             if(confirm("Are you sure you want to permanently delete these items from the database?")) {
                 let deleteQueue = {};
                 checkboxes.forEach(box => {
-                    let safeKey = box.value.replace(/ /g, "_");
+                    // Strips spaces to ensure a perfect match in Firebase
+                    let safeKey = box.value.replace(/ /g, "");
                     deleteQueue[safeKey] = { epc_id: box.value };
                 });
                 
@@ -356,12 +365,14 @@
                         
                         if (item.status === "UNREGISTERED") {
                             let assignedRfid = nextRfidTracker + unregCount;
+                            // Strips spaces from the ID tag to ensure valid HTML elements
+                            let safeId = item.epc.replace(/ /g, '');
                             unregTable.innerHTML += `
                                 <tr>
                                     <td><small style="color:gray;">${item.epc}</small></td>
                                     <td style="font-weight:bold;">${assignedRfid}</td>
-                                    <td><input type="text" id="name_${item.epc.replace(/ /g, '_')}" placeholder="Equipment Name" style="margin:0;"></td>
-                                    <td><button onclick="commitNewTag('${item.epc}', ${assignedRfid}, 'name_${item.epc.replace(/ /g, '_')}')" style="margin:0; width:auto;">Register</button></td>
+                                    <td><input type="text" id="name_${safeId}" placeholder="Equipment Name" style="margin:0;"></td>
+                                    <td><button onclick="commitNewTag('${item.epc}', ${assignedRfid}, 'name_${safeId}')" style="margin:0; width:auto;">Register</button></td>
                                 </tr>`;
                             unregCount++; color = "gray"; 
                         } else {
@@ -389,7 +400,8 @@
                 db.ref('config/next_rfid_num').once('value').then(snap => {
                     db.ref('config').update({next_rfid_num: (snap.val() || 208) + 1});
                 });
-                db.ref('inventory/' + epc.replace(/ /g, '_')).remove();
+                // Space Agnostic Deletion
+                db.ref('inventory/' + epc.replace(/ /g, '')).remove();
             });
         }
 
