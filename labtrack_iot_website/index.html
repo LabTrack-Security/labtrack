@@ -156,7 +156,7 @@
             const typedUser = document.getElementById('admin_user').value.trim();
             const typedPass = document.getElementById('admin_pass').value.trim();
             
-            auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "LabTrackMaster2026!")
+            auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "admintrack")
                 .then(() => {
                     db.ref('config').once('value').then((snapshot) => {
                         const config = snapshot.val() || {};
@@ -181,7 +181,6 @@
         }
 
         function triggerSMSRecovery() {
-            // Generate a 6-digit OTP
             generatedOTP = Math.floor(100000 + Math.random() * 900000).toString(); 
             
             fetch("https://labtrack-security-default-rtdb.asia-southeast1.firebasedatabase.app/recovery_trigger.json", {
@@ -198,20 +197,26 @@
         function verifyOTP() {
             const typedOTP = document.getElementById('otp_input').value.trim();
             if (typedOTP === generatedOTP) {
-                // Correct OTP: Proceed and expire the OTP
                 generatedOTP = ""; 
                 document.getElementById('otp_view').style.display = 'none';
                 document.getElementById('reset_user').value = '';
                 document.getElementById('reset_pass').value = '';
                 document.getElementById('reset_view').style.display = 'flex';
             } else {
-                // Wrong OTP
                 document.getElementById('otp_error').style.display = 'block';
             }
         }
 
         function cancelReset() {
-            generatedOTP = ""; // Expire OTP on cancel
+            generatedOTP = ""; 
+            
+            document.getElementById('otp_input').value = '';
+            document.getElementById('reset_user').value = '';
+            document.getElementById('reset_pass').value = '';
+            
+            document.getElementById('otp_error').style.display = 'none';
+            document.getElementById('login_error').style.display = 'none';
+            
             document.getElementById('otp_view').style.display = 'none';
             document.getElementById('reset_view').style.display = 'none';
             document.getElementById('login_view').style.display = 'flex';
@@ -223,7 +228,7 @@
             
             if (!newUser || !newPass) return alert("Please fill out both fields.");
 
-            auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "LabTrackMaster2026!").then(() => {
+            auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "admintrack").then(() => {
                 db.ref('config').update({
                     dashboard_user: newUser,
                     dashboard_pass: newPass
@@ -311,3 +316,4 @@
     </script>
 </body>
 </html>
+
