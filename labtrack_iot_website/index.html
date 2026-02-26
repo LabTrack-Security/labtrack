@@ -10,7 +10,6 @@
         .logo-container { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px; }
         .logo-img { max-height: 70px; width: auto; }
         
-        /* Box Styling for all views */
         .view-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; position: relative; }
         .box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; max-width: 450px; width: 100%; }
         .box h2 { margin-top: 0; }
@@ -20,7 +19,6 @@
         .error-msg { color: red; font-size: 0.9em; display: none; margin-bottom: 10px; font-weight: bold; }
         .footer-text { position: absolute; bottom: 20px; width: 100%; text-align: center; font-size: 0.85em; color: #888; }
         
-        /* Dashboard Styling */
         #dashboard_view { display: none; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
@@ -54,7 +52,7 @@
             
             <button onclick="attemptLogin()">Login</button>
             <p style="margin-top: 15px; font-size: 0.85em;">
-                <a href="#" onclick="triggerSMSRecovery()" style="color: #0056b3;">Forgot Username / Password?</a>
+                <a href="#" onclick="triggerSMSRecovery()" style="color: #0056b3;">Forgot Username or Password?</a>
             </p>
         </div>
         <div class="footer-text">LabTrack Dashboard V1.0</div>
@@ -67,6 +65,8 @@
             </div>
             <h2>Security Verification</h2>
             <p style="font-size: 0.9em; color: gray;">An OTP has been sent via SMS to the registered Lab Technician's phone.</p>
+            <div id="otp_error" class="error-msg">The OTP is wrong.</div>
+            
             <input type="text" id="otp_input" placeholder="Enter 6-Digit OTP">
             <button onclick="verifyOTP()">Verify Code</button>
             <button onclick="cancelReset()" style="background: #dc3545;">Cancel</button>
@@ -80,6 +80,7 @@
             <input type="text" id="reset_user" placeholder="New Username">
             <input type="password" id="reset_pass" placeholder="New Password">
             <button onclick="submitNewCredentials()">Save Credentials</button>
+            <button onclick="cancelReset()" style="background: #dc3545;">Cancel</button>
         </div>
     </div>
 
@@ -145,10 +146,9 @@
         let generatedOTP = "";
         let isUserVerified = false;
 
-        // Ensure user stays out of dashboard on refresh unless verified
         auth.onAuthStateChanged((user) => {
             if (!isUserVerified && user) {
-                auth.signOut(); // Force sign out if session persists but they didn't type credentials
+                auth.signOut(); 
             }
         });
 
@@ -156,13 +156,12 @@
             const typedUser = document.getElementById('admin_user').value.trim();
             const typedPass = document.getElementById('admin_pass').value.trim();
             
-            // Login using the backend master key to access RTDB
             auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "LabTrackMaster2026!")
                 .then(() => {
                     db.ref('config').once('value').then((snapshot) => {
                         const config = snapshot.val() || {};
-                        const activeUser = config.dashboard_user || "adminlab"; // Default fallback
-                        const activePass = config.dashboard_pass || "admintrack"; // Default fallback
+                        const activeUser = config.dashboard_user || "adminlab"; 
+                        const activePass = config.dashboard_pass || "admintrack"; 
                         
                         if (typedUser === activeUser && typedPass === activePass) {
                             isUserVerified = true;
@@ -172,24 +171,26 @@
                             loadDatabaseData(); 
                         } else {
                             auth.signOut();
-                            document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                             document.getElementById('login_error').style.display = 'block';
                         }
                     });
                 })
                 .catch((error) => {
-                    document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                     document.getElementById('login_error').style.display = 'block';
                 });
         }
 
         function triggerSMSRecovery() {
+            // Generate a 6-digit OTP
             generatedOTP = Math.floor(100000 + Math.random() * 900000).toString(); 
+            
             fetch("https://labtrack-security-default-rtdb.asia-southeast1.firebasedatabase.app/recovery_trigger.json", {
                 method: 'PUT',
                 body: JSON.stringify({ otp: generatedOTP, status: "pending" })
             }).then(() => {
                 document.getElementById('login_view').style.display = 'none';
+                document.getElementById('otp_error').style.display = 'none';
+                document.getElementById('otp_input').value = '';
                 document.getElementById('otp_view').style.display = 'flex';
             }).catch(e => alert("Network Error. Cannot reach ESP32."));
         }
@@ -197,15 +198,22 @@
         function verifyOTP() {
             const typedOTP = document.getElementById('otp_input').value.trim();
             if (typedOTP === generatedOTP) {
+                // Correct OTP: Proceed and expire the OTP
+                generatedOTP = ""; 
                 document.getElementById('otp_view').style.display = 'none';
+                document.getElementById('reset_user').value = '';
+                document.getElementById('reset_pass').value = '';
                 document.getElementById('reset_view').style.display = 'flex';
             } else {
-                alert("Incorrect OTP. Please try again.");
+                // Wrong OTP
+                document.getElementById('otp_error').style.display = 'block';
             }
         }
 
         function cancelReset() {
+            generatedOTP = ""; // Expire OTP on cancel
             document.getElementById('otp_view').style.display = 'none';
+            document.getElementById('reset_view').style.display = 'none';
             document.getElementById('login_view').style.display = 'flex';
         }
 
@@ -215,7 +223,6 @@
             
             if (!newUser || !newPass) return alert("Please fill out both fields.");
 
-            // Log in with Master Key to save new credentials
             auth.signInWithEmailAndPassword("group6labtrack@gmail.com", "LabTrackMaster2026!").then(() => {
                 db.ref('config').update({
                     dashboard_user: newUser,
