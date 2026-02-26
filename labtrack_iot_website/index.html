@@ -289,7 +289,6 @@
             document.getElementById('dashboard_view').style.display = 'none';
             document.getElementById('delete_view').style.display = 'flex';
             
-            // Fetch mirrored SQLite database from Firebase
             db.ref('database_mirror').once('value').then((snapshot) => {
                 const table = document.getElementById('delete_tags_table');
                 table.innerHTML = "";
