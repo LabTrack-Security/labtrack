@@ -26,7 +26,7 @@
         .config-box input { padding: 8px; margin: 5px; width: 90%; box-sizing: border-box; }
         .config-box button { padding: 10px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; width: 90%; margin-top: 10px; }
         .config-box button:hover { background: #218838; }
-        .reg-btn { background: #17a2b8 !important; }
+        .update-btn { background: #dc3545 !important; }
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 15px; }
         .header-left { display: flex; align-items: center; gap: 15px; }
         .header-left h1 { margin: 0; font-size: 1.8em; color: #333; margin-left: 10px; }
@@ -44,10 +44,15 @@
                 <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
             </div>
             <h2>Welcome to LabTrack Dashboard!</h2>
-            <div id="login_error" class="error-msg"></div>
-            <input type="text" id="admin_user" placeholder="Username">
-            <input type="password" id="admin_pass" placeholder="Password">
+            <div id="login_error" class="error-msg">Access Denied: Username or Password is incorrect.</div>
+            
+            <input type="text" id="admin_user" placeholder="Username (Default: adminlab)">
+            <input type="password" id="admin_pass" placeholder="Password (Default: admintrack)">
+            
             <button onclick="attemptLogin()">Login</button>
+            <p style="margin-top: 15px; font-size: 0.85em;">
+                <a href="#" onclick="triggerSMSRecovery()" style="color: #0056b3;">Forgot Username / Password?</a>
+            </p>
         </div>
         <div class="footer-text">LabTrack Dashboard V1.0</div>
     </div>
@@ -71,12 +76,20 @@
                 <input type="password" id="pass_cfg" placeholder="New Wi-Fi PASS..."><br>
                 <button onclick="updateConfig()">Push Settings to ESP32</button>
             </div>
+
             <div class="config-box">
                 <h3>Register New RFID Tag</h3>
                 <input type="text" id="new_epc" placeholder="Scanned EPC ID"><br>
                 <input type="text" id="new_rfid_num" placeholder="RFID Tag Number"><br>
                 <input type="text" id="new_eq_name" placeholder="Equipment Name"><br>
-                <button class="reg-btn" onclick="registerNewTag()">Link Tag to Database</button>
+                <button onclick="registerNewTag()">Link Tag to Database</button>
+            </div>
+
+            <div class="config-box" style="border: 2px solid #dc3545;">
+                <h3 style="color:#dc3545;">Security Management</h3>
+                <input type="text" id="new_admin_user" placeholder="New Username"><br>
+                <input type="password" id="new_admin_pass" placeholder="New Password (Min 6 chars)"><br>
+                <button class="update-btn" onclick="updateCredentials()">Update Login Access</button>
             </div>
         </div>
 
@@ -97,7 +110,6 @@
     </div>
 
     <script>
-        // Updated with your actual credentials
         const firebaseConfig = {
             apiKey: "AIzaSyB5OtoAMERX_SLdVzCXI8rV9P4Kd2WM65U",
             authDomain: "labtrack-security.firebaseapp.com",
@@ -105,43 +117,76 @@
             projectId: "labtrack-security",
             storageBucket: "labtrack-security.firebasestorage.app",
             messagingSenderId: "939021182564",
-            appId: "1:939021182564:web:af0d07b47710dea244a10dea244a171"
+            appId: "1:939021182564:web:af0d07b47710dea244a171"
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
 
-        let isDatabaseLoaded = false; 
-
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                document.getElementById('login_view').style.display = 'none';
-                document.getElementById('dashboard_view').style.display = 'block';
-                if (!isDatabaseLoaded) loadDatabaseData(); 
-            } else {
-                document.getElementById('login_view').style.display = 'flex';
-                document.getElementById('dashboard_view').style.display = 'none';
-            }
-        });
+        function triggerSMSRecovery() {
+            fetch("https://labtrack-security-default-rtdb.asia-southeast1.firebasedatabase.app/recovery_trigger.json", {
+                method: 'PUT',
+                body: JSON.stringify(true)
+            }).then(() => {
+                alert("Security Ping Sent! The ESP32 will text your active Username and Password to the registered Technician Phone shortly.");
+            }).catch(e => alert("Network Error."));
+        }
 
         function attemptLogin() {
-            const username = document.getElementById('admin_user').value.trim();
-            const pass = document.getElementById('admin_pass').value.trim();
+            const typedUser = document.getElementById('admin_user').value.trim();
+            const typedPass = document.getElementById('admin_pass').value.trim();
             
-            let email = (username === "adminlab") ? "group6labtrack@gmail.com" : username;
-
-            auth.signInWithEmailAndPassword(email, pass)
-                .then(() => { document.getElementById('login_error').style.display = 'none'; })
+            // Login to the secure backend using the official email
+            auth.signInWithEmailAndPassword("group6labtrack@gmail.com", typedPass)
+                .then(() => {
+                    db.ref('config/dashboard_user').once('value').then((snapshot) => {
+                        const activeUser = snapshot.val() || "adminlab";
+                        if (typedUser === activeUser) {
+                            document.getElementById('login_error').style.display = 'none';
+                            document.getElementById('login_view').style.display = 'none';
+                            document.getElementById('dashboard_view').style.display = 'block';
+                            loadDatabaseData(); 
+                        } else {
+                            auth.signOut();
+                            document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
+                            document.getElementById('login_error').style.display = 'block';
+                        }
+                    });
+                })
                 .catch((error) => {
-                    document.getElementById('login_error').innerText = "Access Denied: " + error.message;
+                    document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                     document.getElementById('login_error').style.display = 'block';
                 });
         }
 
-        function logout() { auth.signOut(); }
+        function logout() {
+            auth.signOut().then(() => {
+                document.getElementById('login_view').style.display = 'flex';
+                document.getElementById('dashboard_view').style.display = 'none';
+                document.getElementById('admin_user').value = '';
+                document.getElementById('admin_pass').value = '';
+            });
+        }
+
+        function updateCredentials() {
+            const newUser = document.getElementById('new_admin_user').value.trim();
+            const newPass = document.getElementById('new_admin_pass').value.trim();
+            if(!newUser || !newPass || newPass.length < 6) return alert("Fill both fields. Password must be 6+ chars.");
+
+            const user = firebase.auth().currentUser;
+            user.updatePassword(newPass).then(() => {
+                db.ref('config').update({
+                    dashboard_user: newUser,
+                    dashboard_pass: newPass
+                }).then(() => {
+                    alert("Credentials Updated Successfully!");
+                    document.getElementById('new_admin_user').value = "";
+                    document.getElementById('new_admin_pass').value = "";
+                });
+            }).catch(err => alert("Security Check: Please logout and login again before changing credentials."));
+        }
 
         function loadDatabaseData() {
-            isDatabaseLoaded = true;
             db.ref('inventory').on('value', (snapshot) => {
                 const table = document.getElementById('inventory_table');
                 table.innerHTML = ""; 
@@ -167,14 +212,19 @@
             const newPhone = document.getElementById('phone_cfg').value.trim();
             const newSsid = document.getElementById('ssid_cfg').value.trim();
             const newPass = document.getElementById('pass_cfg').value.trim();
+
             let updates = {};
             if (newPhone !== "") updates['phone'] = newPhone;
             if (newSsid !== "") updates['ssid'] = newSsid;
             if (newPass !== "") updates['pass'] = newPass;
+
             if (Object.keys(updates).length === 0) return alert("Please enter a new value.");
+
             db.ref('config').update(updates).then(() => {
                 alert("Settings pushed securely!");
-                document.getElementById('phone_cfg').value = ''; document.getElementById('ssid_cfg').value = ''; document.getElementById('pass_cfg').value = '';
+                document.getElementById('phone_cfg').value = '';
+                document.getElementById('ssid_cfg').value = '';
+                document.getElementById('pass_cfg').value = '';
             }).catch((error) => alert("Permission Denied: " + error.message));
         }
 
@@ -182,12 +232,19 @@
             const epc = document.getElementById('new_epc').value.trim();
             const rfidNum = document.getElementById('new_rfid_num').value.trim();
             const eqName = document.getElementById('new_eq_name').value.trim();
-            if(!epc || !rfidNum || !eqName) return alert("Please fill out all fields.");
-            db.ref('pending_tags').push({ epc_id: epc, rfid_tag_number: rfidNum, equipment_name: eqName })
-                .then(() => {
-                    alert("Tag Registration Queued!");
-                    document.getElementById('new_epc').value = ''; document.getElementById('new_rfid_num').value = ''; document.getElementById('new_eq_name').value = '';
-                }).catch((error) => alert("Permission Denied: " + error.message));
+
+            if(!epc || !rfidNum || !eqName) return alert("Please fill out all 3 fields.");
+
+            db.ref('pending_tags').push({
+                epc_id: epc,
+                rfid_tag_number: rfidNum,
+                equipment_name: eqName
+            }).then(() => {
+                alert("Tag Registration Queued! The Raspberry Pi will sync it shortly.");
+                document.getElementById('new_epc').value = '';
+                document.getElementById('new_rfid_num').value = '';
+                document.getElementById('new_eq_name').value = '';
+            }).catch((error) => alert("Permission Denied: " + error.message));
         }
     </script>
 </body>
