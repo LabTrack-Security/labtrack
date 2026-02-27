@@ -45,9 +45,9 @@
     <div id="login_view" class="view-container">
         <div class="box">
             <div class="logo-container">
-                <img src="university_logo.png" alt="University Logo" class="logo-img">
-                <img src="dept_logo.png" alt="Department Logo" class="logo-img">
-                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
+                <img src="university_logo.png" alt="University Logo" class="logo-img" onerror="this.style.display='none'">
+                <img src="dept_logo.png" alt="Department Logo" class="logo-img" onerror="this.style.display='none'">
+                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img" onerror="this.style.display='none'">
             </div>
             <h2>Welcome to LabTrack Dashboard!</h2>
             <div id="login_error" class="error-msg">Access Denied: Username or Password is incorrect.</div>
@@ -64,7 +64,7 @@
     <div id="otp_view" class="view-container" style="display:none;">
         <div class="box">
             <div class="logo-container">
-                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
+                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img" onerror="this.style.display='none'">
             </div>
             <h2>Security Verification</h2>
             <p style="font-size: 0.9em; color: gray;">An OTP has been sent via SMS to the registered Lab Technician's phone.</p>
@@ -132,9 +132,9 @@
     <div id="dashboard_view">
         <div class="header-bar">
             <div class="header-left">
-                <img src="university_logo.png" alt="University Logo" class="logo-img">
-                <img src="dept_logo.png" alt="Department Logo" class="logo-img">
-                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img">
+                <img src="university_logo.png" alt="University Logo" class="logo-img" onerror="this.style.display='none'">
+                <img src="dept_logo.png" alt="Department Logo" class="logo-img" onerror="this.style.display='none'">
+                <img src="labtrack_logo.png" alt="LabTrack Logo" class="logo-img" onerror="this.style.display='none'">
                 <h1>LabTrack Real-Time Dashboard</h1>
             </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
@@ -236,12 +236,13 @@
                 });
         }
 
+        // --- NEW STATUS MONITOR LOGIC ---
         function monitorHardwareStatus() {
             db.ref('system_status').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
                     let espColor = data.esp32 === "Online" ? "🟢" : "🔴";
-                    document.getElementById('esp_status').innerHTML = `<b>ESP32 Microcontroller:</b> ${espColor} ${data.esp32 || "Offline"}`;
+                    document.getElementById('esp_status').innerHTML = `<b>ESP32:</b> ${espColor} ${data.esp32 || "Offline"}`;
                     
                     let r1Color = data.reader1 === "Scanning" ? "🔵" : "🟢";
                     document.getElementById('r1_status').innerHTML = `<b>Reader 1 (304B):</b> ${r1Color} ${data.reader1 || "Offline"}`;
@@ -249,12 +250,10 @@
                     let r2Color = data.reader2 === "Scanning" ? "🔵" : "🟢";
                     document.getElementById('r2_status').innerHTML = `<b>Reader 2 (304A):</b> ${r2Color} ${data.reader2 || "Offline"}`;
 
-                    // NEW PI/KIOSK INDICATOR LOGIC
                     let piColor = data.raspberry_pi === "Online" ? "🟢" : "🔴";
-                    document.getElementById('pi_status').innerHTML = `<b>Kiosk / Database:</b> ${piColor} ${data.raspberry_pi || "Offline"}`;
-                    
-                    // Displays invisible Python errors in your browser console to make debugging easy!
-                    if (data.db_error) { console.error("LABTRACK DATABASE ERROR: " + data.db_error); }
+                    let dbMsg = data.db_status || "Checking DB...";
+                    // Displays "Loaded 207 tags" or "Error: No such table" right on the UI!
+                    document.getElementById('pi_status').innerHTML = `<b>Kiosk / Database:</b> ${piColor} ${data.raspberry_pi || "Offline"} <i style="color:gray;">(${dbMsg})</i>`;
                 }
             });
         }
