@@ -35,6 +35,9 @@
         .header-left h1 { margin: 0; font-size: 1.8em; color: #333; margin-left: 10px; }
         .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .breach-row { background-color: #ffe6e6; }
+        
+        .status-bar { display: flex; gap: 30px; background: white; padding: 15px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; font-size: 0.95em; align-items: center; }
+        .status-item { display: flex; align-items: center; gap: 8px; }
     </style>
 </head>
 <body>
@@ -106,7 +109,6 @@
         <div class="box" style="max-width: 750px;">
             <h2 style="color: #dc3545;">Delete / Remove Equipment</h2>
             <p style="font-size: 0.9em; color: gray;">Select equipment from the database to permanently remove.</p>
-            
             <div style="max-height: 400px; overflow-y: auto;">
                 <table style="margin-top: 10px;">
                     <thead>
@@ -120,7 +122,6 @@
                     <tbody id="delete_tags_table"></tbody>
                 </table>
             </div>
-            
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button onclick="commitDeletion()" style="background: #dc3545; width: 50%;">Save (Delete Selected)</button>
                 <button onclick="cancelDeleteView()" style="background: #6c757d; width: 50%;">Cancel</button>
@@ -137,6 +138,13 @@
                 <h1>LabTrack Real-Time Dashboard</h1>
             </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item" id="esp_status"><b>ESP32 Microcontroller:</b> 🔴 Offline</div>
+            <div class="status-item" id="r1_status"><b>Reader 1 (304B):</b> 🔴 Offline</div>
+            <div class="status-item" id="r2_status"><b>Reader 2 (304A):</b> 🔴 Offline</div>
+            <div class="status-item" id="pi_status"><b>Kiosk / Database:</b> 🔴 Offline</div>
         </div>
 
         <div class="panel-grid">
@@ -170,7 +178,7 @@
                     <th>Status</th>
                     <th>Location</th>
                     <th>Last Seen</th>
-                    <th>Signal (RSSI)</th>
+                    <th>Est. Distance</th>
                 </tr>
             </thead>
             <tbody id="inventory_table"></tbody>
@@ -214,6 +222,7 @@
                             document.getElementById('login_view').style.display = 'none';
                             document.getElementById('dashboard_view').style.display = 'block';
                             loadDatabaseData(); 
+                            monitorHardwareStatus(); 
                         } else {
                             auth.signOut();
                             document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
@@ -225,6 +234,29 @@
                     document.getElementById('login_error').innerText = "Access Denied: Username or Password is incorrect.";
                     document.getElementById('login_error').style.display = 'block';
                 });
+        }
+
+        function monitorHardwareStatus() {
+            db.ref('system_status').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    let espColor = data.esp32 === "Online" ? "🟢" : "🔴";
+                    document.getElementById('esp_status').innerHTML = `<b>ESP32 Microcontroller:</b> ${espColor} ${data.esp32 || "Offline"}`;
+                    
+                    let r1Color = data.reader1 === "Scanning" ? "🔵" : "🟢";
+                    document.getElementById('r1_status').innerHTML = `<b>Reader 1 (304B):</b> ${r1Color} ${data.reader1 || "Offline"}`;
+                    
+                    let r2Color = data.reader2 === "Scanning" ? "🔵" : "🟢";
+                    document.getElementById('r2_status').innerHTML = `<b>Reader 2 (304A):</b> ${r2Color} ${data.reader2 || "Offline"}`;
+
+                    // NEW PI/KIOSK INDICATOR LOGIC
+                    let piColor = data.raspberry_pi === "Online" ? "🟢" : "🔴";
+                    document.getElementById('pi_status').innerHTML = `<b>Kiosk / Database:</b> ${piColor} ${data.raspberry_pi || "Offline"}`;
+                    
+                    // Displays invisible Python errors in your browser console to make debugging easy!
+                    if (data.db_error) { console.error("LABTRACK DATABASE ERROR: " + data.db_error); }
+                }
+            });
         }
 
         // --- OTP Logic ---
@@ -276,6 +308,7 @@
 
         function logout() {
             isUserVerified = false;
+            db.ref('system_status').off(); 
             auth.signOut().then(() => {
                 document.getElementById('login_view').style.display = 'flex';
                 document.getElementById('dashboard_view').style.display = 'none';
@@ -289,7 +322,6 @@
             document.getElementById('dashboard_view').style.display = 'none';
             document.getElementById('delete_view').style.display = 'flex';
             
-            // Re-loads instantly using '.on' so you don't stare at an empty table
             db.ref('database_mirror').on('value', (snapshot) => {
                 const table = document.getElementById('delete_tags_table');
                 table.innerHTML = "";
@@ -325,7 +357,6 @@
             if(confirm("Are you sure you want to permanently delete these items from the database?")) {
                 let deleteQueue = {};
                 checkboxes.forEach(box => {
-                    // Strips spaces to ensure a perfect match in Firebase
                     let safeKey = box.value.replace(/ /g, "");
                     deleteQueue[safeKey] = { epc_id: box.value };
                 });
@@ -359,13 +390,12 @@
 
                     snapshot.forEach((childSnapshot) => {
                         const item = childSnapshot.val();
-                        let isBreach = item.status.includes("BREACH");
+                        let isBreach = item.status.includes("BREACH") || item.status.includes("NETWORK DOWN");
                         let color = isBreach || item.status.includes("MISSING") ? "red" : (item.status.includes("Borrowed") ? "orange" : "green");
                         let rowClass = isBreach ? "class='breach-row'" : "";
                         
                         if (item.status === "UNREGISTERED") {
                             let assignedRfid = nextRfidTracker + unregCount;
-                            // Strips spaces from the ID tag to ensure valid HTML elements
                             let safeId = item.epc.replace(/ /g, '');
                             unregTable.innerHTML += `
                                 <tr>
@@ -383,7 +413,7 @@
                                     <td style="color:${color}; font-weight:bold;">${item.status}</td>
                                     <td>${item.location}</td>
                                     <td>${item.timestamp}</td>
-                                    <td>${item.signal || 'N/A'}</td>
+                                    <td>${item.signal || 'Unknown'}</td>
                                 </tr>`;
                         }
                     });
@@ -400,7 +430,6 @@
                 db.ref('config/next_rfid_num').once('value').then(snap => {
                     db.ref('config').update({next_rfid_num: (snap.val() || 208) + 1});
                 });
-                // Space Agnostic Deletion
                 db.ref('inventory/' + epc.replace(/ /g, '')).remove();
             });
         }
